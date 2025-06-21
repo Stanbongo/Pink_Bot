@@ -14,7 +14,8 @@ async def setup_database():
             pref_winner_id TEXT,
             pref_winner_name TEXT,
             draw_date TEXT,
-            lottery_channel_id TEXT
+            lottery_channel_id TEXT,
+            lottery_planning_date TEXT
         )
         """)
         await db.commit()
@@ -32,7 +33,6 @@ async def set_winner(guild_id: int, member):
     print(f"[DB] set_winner() called for guild {guild_id} -> member: {member.name} ({member.id})")
 
     async with aiosqlite.connect(DB_PATH) as db:
-        # Получаем текущего победителя как прошлого
         async with db.execute("SELECT current_winner_id, current_winner_name FROM lottery WHERE guild_id = ?", (str(guild_id),)) as cursor:
             row = await cursor.fetchone()
             prev_id = row[0] if row else None
@@ -59,16 +59,12 @@ async def set_winner(guild_id: int, member):
 
 async def get_current_winner(guild_id: int):
     async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("""
-        SELECT current_winner_id, current_winner_name FROM lottery WHERE guild_id = ?
-        """, (str(guild_id),)) as cursor:
+        async with db.execute("SELECT current_winner_id, current_winner_name FROM lottery WHERE guild_id = ?", (str(guild_id),)) as cursor:
             return await cursor.fetchone()
 
 async def get_previous_winner(guild_id: int):
     async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("""
-        SELECT pref_winner_id, pref_winner_name FROM lottery WHERE guild_id = ?
-        """, (str(guild_id),)) as cursor:
+        async with db.execute("SELECT pref_winner_id, pref_winner_name FROM lottery WHERE guild_id = ?", (str(guild_id),)) as cursor:
             return await cursor.fetchone()
 
 async def set_lottery_channel(guild_id: int, channel_id: int):
@@ -83,8 +79,33 @@ async def set_lottery_channel(guild_id: int, channel_id: int):
 
 async def get_lottery_channel(guild_id: int):
     async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("""
-        SELECT lottery_channel_id FROM lottery WHERE guild_id = ?
-        """, (str(guild_id),)) as cursor:
+        async with db.execute("SELECT lottery_channel_id FROM lottery WHERE guild_id = ?", (str(guild_id),)) as cursor:
             row = await cursor.fetchone()
             return int(row[0]) if row and row[0] else None
+
+async def set_lottery_date(guild_id: int, planning_date: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("""
+        INSERT INTO lottery (guild_id, lottery_planning_date)
+        VALUES (?, ?)
+        ON CONFLICT(guild_id) DO UPDATE SET
+            lottery_planning_date = excluded.lottery_planning_date
+        """, (str(guild_id), planning_date))
+        await db.commit()
+
+async def get_lottery_date(guild_id: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT lottery_planning_date FROM lottery WHERE guild_id = ?", (str(guild_id),)) as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row and row[0] else None
+
+async def delete_lottery_date(guild_id: int):
+    """
+    Удаляет запланированную дату розыгрыша, обнуляя поле lottery_planning_date.
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE lottery SET lottery_planning_date = NULL WHERE guild_id = ?",
+            (str(guild_id),)
+        )
+        await db.commit()

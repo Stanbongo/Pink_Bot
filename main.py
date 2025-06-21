@@ -15,9 +15,12 @@ async def on_ready():
     print(f'Бот {bot.user} готов! Команды: {[c.name for c in bot.commands]}')
 
 async def main():
-    await setup_database()
+    await setup_database()  # База данных с данными о пользователях сервера (деньги, петухи и т. д.)
+
+    # Импорт переменных окружения
     load_dotenv()
     token = os.getenv('DISCORD_BOT_TOKEN')
+
     async with bot:
         await bot.load_extension("cogs.commands")
         await bot.start(token)
